@@ -139,8 +139,10 @@ function Dashboard() {
           },
         });
       } else {
-        // Send text
-        response = await axios.post(`${API_URL}${endpoint}`, { text: currentNotes });
+        // Send text as FormData
+        const formData = new FormData();
+        formData.append('text', currentNotes);
+        response = await axios.post(`${API_URL}${endpoint}`, formData);
       }
       
       // Add assistant message
@@ -306,13 +308,10 @@ function Dashboard() {
               {loading && (
                 <div className="flex items-start gap-4">
                   <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-5 h-5 text-indigo-600" />
+                    <Loader2 className="animate-spin text-indigo-600" size={24} />
                   </div>
                   <div className="flex-1 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                    <div className="flex items-center gap-3 text-indigo-600">
-                      <Loader2 className="animate-spin" size={24} />
-                      <p className="text-gray-600">Processing your {uploadedFile ? 'PDF' : 'notes'}...</p>
-                    </div>
+                    <p className="text-gray-600">Processing your {uploadedFile ? 'PDF' : 'notes'}...</p>
                   </div>
                 </div>
               )}
@@ -423,6 +422,9 @@ function MessageBubble({ message }: { message: Message }) {
   if (message.role === 'user') {
     return (
       <div className="flex items-start gap-4 justify-end">
+        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+          <MessageSquare className="w-5 h-5 text-gray-600" />
+        </div>
         <div className="bg-indigo-600 text-white rounded-2xl p-4 max-w-3xl shadow-sm">
           {message.fileName && (
             <div className="flex items-center gap-2 mb-2 pb-2 border-b border-indigo-400">
@@ -432,9 +434,6 @@ function MessageBubble({ message }: { message: Message }) {
           )}
           <p className="whitespace-pre-wrap">{message.content}</p>
         </div>
-        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
-          <MessageSquare className="w-5 h-5 text-gray-600" />
-        </div>
       </div>
     );
   }
@@ -442,8 +441,26 @@ function MessageBubble({ message }: { message: Message }) {
   // Assistant message
   return (
     <div className="flex items-start gap-4">
-      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-        <Sparkles className="w-5 h-5 text-indigo-600" />
+      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+        {/* MODIFICATION: Using the logo image instead of the Sparkles icon */}
+        <img 
+          src="/Logo.png" 
+          alt="StudyFlow AI" 
+          className="w-8 h-8 rounded-full object-cover" 
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.onerror = null; 
+            target.style.display = 'none';
+            // Fallback to Sparkles icon if logo image fails to load
+            const parent = target.parentElement;
+            if (parent) {
+                const sparkles = document.createElement('div');
+                sparkles.className = 'w-5 h-5 text-indigo-600';
+                sparkles.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-indigo-600"><path d="M10 14L2 22M22 2L14 10M21.5 5.5L18 9M6 18L2.5 21.5M16 8L20.5 3.5M3.5 3.5L8 8"/></svg>'; 
+                parent.appendChild(sparkles);
+            }
+          }}
+        />
       </div>
       
       <div className="flex-1 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
