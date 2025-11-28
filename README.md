@@ -1,73 +1,84 @@
-# React + TypeScript + Vite
+# StudyFlow AI Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+StudyFlow is an AI-powered educational assistant designed to help students and learners optimize their study process. The platform allows users to upload notes or PDF files, automatically generates summaries and flashcards, and creates smart study timetables tailored to individual needs.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+* **Upload Notes & PDFs**: Users can upload text files or PDFs.
+* **AI-Generated Summaries**: The system automatically generates concise summaries from uploaded content using Google Gemini.
+* **Flashcards Generation**: Key points are converted into interactive flashcards for easier learning and revision.
+* **Smart Timetable Generator**: Generates optimized study schedules based on the user's uploaded content and study goals.
 
-## React Compiler
+## Technology Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+* **Frontend**: React (TypeScript)
+* **Backend**: FastAPI (Python)
+* **Database**: SQLite
+* **AI Integration**: Google Gemini API
+* **File Handling**: Supports text and PDF uploads
 
-## Expanding the ESLint configuration
+## Installation
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Backend
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+1. Clone the repository:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+git clone <https://github.com/ompandey07/StudyFlowl>
+cd backend
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+2. Create a virtual environment and activate it:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate  # Windows
 ```
+
+3. Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+4. Start the FastAPI server:
+
+```bash
+uvicorn main:app --reload
+```
+
+### Frontend
+
+1. Navigate to the frontend folder:
+
+```bash
+cd frontend
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Start the development server:
+
+```bash
+npm run dev
+```
+
+## Usage
+
+1. Open the frontend URL in your browser (usually `http://localhost:5173`).
+2. Upload your notes or PDF files.
+3. View automatically generated summaries and flashcards.
+4. Use the smart timetable generator to plan your study schedule.
+
+## Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request for bug fixes and feature requests.
+
+## License
+
+This project is licensed under the MIT License.

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { 
   FileText, 
@@ -14,6 +14,9 @@ import {
   Plus,
   MessageSquare,
   History,
+  Upload,
+  X,
+  File,
 } from 'lucide-react';
 
 // Define types for our data
@@ -40,6 +43,7 @@ interface Message {
   content: string;
   type?: 'summary' | 'flashcards' | 'timetable';
   data?: any;
+  fileName?: string;
 }
 
 const API_URL = 'http://localhost:8000';
@@ -51,6 +55,8 @@ function Dashboard() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch History on Load
   const fetchHistory = async () => {
@@ -71,27 +77,71 @@ function Dashboard() {
     setMessages([]);
     setCurrentConversationId(null);
     setNotes('');
+    setUploadedFile(null);
+  };
+
+  // Handle file upload
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.type === 'application/pdf') {
+        setUploadedFile(file);
+      } else {
+        alert('Please upload a PDF file only.');
+      }
+    }
+  };
+
+  // Remove uploaded file
+  const removeUploadedFile = () => {
+    setUploadedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   // Generate content
   const handleGenerate = async (type: 'summary' | 'flashcards' | 'timetable') => {
-    if (!notes.trim()) return alert('Please enter some notes first!');
+    if (!notes.trim() && !uploadedFile) {
+      return alert('Please enter some notes or upload a PDF first!');
+    }
     
     // Add user message
     const userMessage: Message = {
       role: 'user',
-      content: notes,
+      content: uploadedFile ? `Uploaded PDF: ${uploadedFile.name}` : notes,
+      fileName: uploadedFile?.name,
     };
     setMessages(prev => [...prev, userMessage]);
     
     setLoading(true);
+    const currentNotes = notes;
+    const currentFile = uploadedFile;
     setNotes('');
+    setUploadedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     
     try {
       await new Promise(resolve => setTimeout(resolve, 800)); 
       
       const endpoint = `/generate/${type}`;
-      const response = await axios.post(`${API_URL}${endpoint}`, { text: userMessage.content });
+      let response;
+
+      if (currentFile) {
+        // Send PDF file
+        const formData = new FormData();
+        formData.append('file', currentFile);
+        response = await axios.post(`${API_URL}${endpoint}`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+      } else {
+        // Send text
+        response = await axios.post(`${API_URL}${endpoint}`, { text: currentNotes });
+      }
       
       // Add assistant message
       const assistantMessage: Message = {
@@ -225,7 +275,7 @@ function Dashboard() {
                 }}
               />
               <p className="text-gray-500 text-center max-w-md mb-8">
-                Transform your notes into summaries, flashcards, and study timetables with AI
+                Transform your notes or PDFs into summaries, flashcards, and study timetables with AI
               </p>
               
               <div className="grid grid-cols-3 gap-4 max-w-2xl">
@@ -261,7 +311,7 @@ function Dashboard() {
                   <div className="flex-1 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                     <div className="flex items-center gap-3 text-indigo-600">
                       <Loader2 className="animate-spin" size={24} />
-                      <p className="text-gray-600">Processing your notes...</p>
+                      <p className="text-gray-600">Processing your {uploadedFile ? 'PDF' : 'notes'}...</p>
                     </div>
                   </div>
                 </div>
@@ -274,16 +324,35 @@ function Dashboard() {
         <div className="border-t border-gray-200 bg-white p-4">
           <div className="max-w-4xl mx-auto">
             <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
+              {/* File Upload Display */}
+              {uploadedFile && (
+                <div className="px-4 pt-3">
+                  <div className="flex items-center gap-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                    <File className="w-5 h-5 text-indigo-600" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-800">{uploadedFile.name}</p>
+                      <p className="text-xs text-gray-500">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <button
+                      onClick={removeUploadedFile}
+                      className="p-1 hover:bg-indigo-100 rounded transition-colors"
+                    >
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              
               <textarea
                 className="w-full p-4 bg-transparent resize-none focus:outline-none text-gray-700"
-                placeholder="Paste your lecture notes, articles, or study material here..."
+                placeholder={uploadedFile ? "PDF uploaded! Click a button below to generate..." : "Paste your lecture notes, articles, or study material here..."}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
+                disabled={!!uploadedFile}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.ctrlKey) {
+                  if (e.key === 'Enter' && e.ctrlKey && !uploadedFile) {
                     e.preventDefault();
-                    // Default to summary if Ctrl+Enter
                     if (notes.trim()) handleGenerate('summary');
                   }
                 }}
@@ -295,34 +364,52 @@ function Dashboard() {
                     icon={<BookOpenText size={18} />} 
                     label="Summary" 
                     onClick={() => handleGenerate('summary')} 
-                    disabled={loading || !notes.trim()}
+                    disabled={loading || (!notes.trim() && !uploadedFile)}
                   />
                   <ActionButton 
                     icon={<Layers3 size={18} />} 
                     label="Flashcards" 
                     onClick={() => handleGenerate('flashcards')} 
-                    disabled={loading || !notes.trim()}
+                    disabled={loading || (!notes.trim() && !uploadedFile)}
                   />
                   <ActionButton 
                     icon={<CalendarCheck size={18} />} 
                     label="Timetable" 
                     onClick={() => handleGenerate('timetable')} 
-                    disabled={loading || !notes.trim()}
+                    disabled={loading || (!notes.trim() && !uploadedFile)}
                   />
                 </div>
                 
-                <button
-                  onClick={() => handleGenerate('summary')}
-                  disabled={loading || !notes.trim()}
-                  className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Send size={20} />
-                </button>
+                <div className="flex gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={loading || !!uploadedFile}
+                    className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title="Upload PDF"
+                  >
+                    <Upload size={20} />
+                  </button>
+                  
+                  <button
+                    onClick={() => handleGenerate('summary')}
+                    disabled={loading || (!notes.trim() && !uploadedFile)}
+                    className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Send size={20} />
+                  </button>
+                </div>
               </div>
             </div>
             
             <p className="text-xs text-gray-400 text-center mt-2">
-              Press Ctrl+Enter for quick summary or click a button above
+              {uploadedFile ? "Click a button to process your PDF" : "Press Ctrl+Enter for quick summary or upload a PDF"}
             </p>
           </div>
         </div>
@@ -337,6 +424,12 @@ function MessageBubble({ message }: { message: Message }) {
     return (
       <div className="flex items-start gap-4 justify-end">
         <div className="bg-indigo-600 text-white rounded-2xl p-4 max-w-3xl shadow-sm">
+          {message.fileName && (
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-indigo-400">
+              <File className="w-4 h-4" />
+              <span className="text-sm font-medium">{message.fileName}</span>
+            </div>
+          )}
           <p className="whitespace-pre-wrap">{message.content}</p>
         </div>
         <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">

@@ -1,6 +1,6 @@
 import os
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import google.generativeai as genai
@@ -9,6 +9,8 @@ import json
 import re
 import sqlite3
 import datetime
+import PyPDF2
+import io
 
 # ----------------------
 #  Gemini Configuration
@@ -34,7 +36,7 @@ DATABASE_NAME = "studyflow.db"
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE_NAME)
-    conn.row_factory = sqlite3.Row  # This allows accessing columns by name
+    conn.row_factory = sqlite3.Row
     return conn
 
 def setup_database():
@@ -52,7 +54,6 @@ def setup_database():
     conn.commit()
     conn.close()
 
-# Initialize the database when the app starts
 setup_database()
 
 # ----------------------
@@ -82,6 +83,20 @@ class HistoryItem(BaseModel):
     output_content: str
 
 # ----------------------
+# PDF Extraction Helper
+# ----------------------
+def extract_text_from_pdf(file_bytes: bytes) -> str:
+    """Extract text from PDF bytes"""
+    try:
+        pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() + "\n"
+        return text.strip()
+    except Exception as e:
+        raise Exception(f"Failed to extract text from PDF: {str(e)}")
+
+# ----------------------
 # Helpers
 # ----------------------
 def safe_extract(res):
@@ -108,16 +123,31 @@ def save_history(type: str, input_text: str, output_content: str):
 # SUMMARY
 # ----------------------
 @app.post("/generate/summary", response_model=APIResponse)
-async def generate_summary(req: NoteRequest):
+async def generate_summary(
+    text: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None)
+):
     try:
+        # Determine input source
+        if file:
+            file_bytes = await file.read()
+            input_text = extract_text_from_pdf(file_bytes)
+            save_input = f"PDF: {file.filename}"
+        elif text:
+            input_text = text
+            save_input = text
+        else:
+            raise HTTPException(400, "Either text or file must be provided")
+
+        # Generate summary
         res = model.generate_content(
-            f"Summarize clearly in clean text:\n\n{req.text}"
+            f"Summarize clearly in clean text:\n\n{input_text}"
         )
         summary = safe_extract(res)
         if not summary:
             raise Exception("Empty summary from model.")
         
-        save_history("summary", req.text, summary)
+        save_history("summary", save_input, summary)
         return {"summary": summary}
 
     except Exception as e:
@@ -128,19 +158,33 @@ async def generate_summary(req: NoteRequest):
 # FLASHCARDS
 # ----------------------
 @app.post("/generate/flashcards", response_model=APIResponse)
-async def generate_flashcards(req: NoteRequest):
+async def generate_flashcards(
+    text: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None)
+):
     try:
+        # Determine input source
+        if file:
+            file_bytes = await file.read()
+            input_text = extract_text_from_pdf(file_bytes)
+            save_input = f"PDF: {file.filename}"
+        elif text:
+            input_text = text
+            save_input = text
+        else:
+            raise HTTPException(400, "Either text or file must be provided")
+
         prompt = (
             "Create exactly 5 flashcards in STRICT JSON array format.\n"
             "Do not add explanations. Only return JSON.\n"
             "Keys: front, back.\n\n"
-            f"{req.text}"
+            f"{input_text}"
         )
 
         res = model.generate_content(prompt)
         raw = safe_extract(res)
 
-        # Extract JSON array from messy AI output
+        # Extract JSON array
         json_match = re.search(r"\[.*\]", raw, re.DOTALL)
         if not json_match:
             raise Exception("No JSON array found.")
@@ -148,7 +192,7 @@ async def generate_flashcards(req: NoteRequest):
         clean_json = json_match.group(0)
         data = json.loads(clean_json)
         
-        save_history("flashcards", req.text, clean_json)
+        save_history("flashcards", save_input, clean_json)
         return {"flashcards": data}
 
     except Exception as e:
@@ -159,12 +203,26 @@ async def generate_flashcards(req: NoteRequest):
 # TIMETABLE
 # ----------------------
 @app.post("/generate/timetable", response_model=APIResponse)
-async def generate_timetable(req: NoteRequest):
+async def generate_timetable(
+    text: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None)
+):
     try:
+        # Determine input source
+        if file:
+            file_bytes = await file.read()
+            input_text = extract_text_from_pdf(file_bytes)
+            save_input = f"PDF: {file.filename}"
+        elif text:
+            input_text = text
+            save_input = text
+        else:
+            raise HTTPException(400, "Either text or file must be provided")
+
         prompt = (
             "Create a 1-day study timetable in STRICT JSON array format.\n"
             "Keys: time, activity.\n\n"
-            f"{req.text}"
+            f"{input_text}"
         )
 
         res = model.generate_content(prompt)
@@ -177,7 +235,7 @@ async def generate_timetable(req: NoteRequest):
         clean_json = json_match.group(0)
         data = json.loads(clean_json)
         
-        save_history("timetable", req.text, clean_json)
+        save_history("timetable", save_input, clean_json)
         return {"timetable": data}
 
     except Exception as e:
@@ -190,12 +248,10 @@ async def generate_timetable(req: NoteRequest):
 async def get_history():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Fetching latest 20 items, sorted by newest first
     cursor.execute("SELECT * FROM history ORDER BY id DESC LIMIT 20")
     history_rows = cursor.fetchall()
     conn.close()
     
-    # Convert Row objects to dicts for Pydantic validation
     history_list = [dict(row) for row in history_rows]
     return history_list
 
